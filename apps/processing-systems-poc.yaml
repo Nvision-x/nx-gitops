@@ -1,0 +1,37 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: processing-systems-poc
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: nvisionx-development
+  source:
+    repoURL: ghcr.io/nvision-x
+    chart: processing-systems
+    targetRevision: 2026.05.08-dev.4
+    helm:
+      releaseName: processing-systems-poc
+      valuesObject:
+        tika:
+          enabled: true
+          autoscaling:
+            enabled: false
+          podDisruptionBudget:
+            enabled: false
+          serviceMonitor:
+            enabled: false
+        kreuzberg:
+          enabled: false
+        networkPolicy:
+          enabled: false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd-poc
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
