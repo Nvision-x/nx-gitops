@@ -1,0 +1,52 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: applications
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - list:
+        elements:
+          - name: processing-systems-poc
+            chart: processing-systems
+            targetRevision: 2026.05.08-dev.4
+            namespace: argocd-poc
+            values: |
+              tika:
+                enabled: true
+                autoscaling:
+                  enabled: false
+                podDisruptionBudget:
+                  enabled: false
+                serviceMonitor:
+                  enabled: false
+              kreuzberg:
+                enabled: false
+              networkPolicy:
+                enabled: false
+  template:
+    metadata:
+      name: "{{ .name }}"
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io
+    spec:
+      project: nvisionx-development
+      destination:
+        name: development
+        namespace: "{{ .namespace }}"
+      source:
+        repoURL: ghcr.io/nvision-x
+        chart: "{{ .chart }}"
+        targetRevision: "{{ .targetRevision }}"
+        helm:
+          releaseName: "{{ .name }}"
+          values: |
+{{ .values | nindent 12 }}
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
