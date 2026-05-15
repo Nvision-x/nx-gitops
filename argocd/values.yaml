@@ -4,6 +4,12 @@ configs:
 
 server:
   replicas: 1
+  service:
+    type: LoadBalancer
+    loadBalancerClass: tailscale
+    annotations:
+      tailscale.com/expose: "true"
+      tailscale.com/hostname: argocd
 
 controller:
   replicas: 1
