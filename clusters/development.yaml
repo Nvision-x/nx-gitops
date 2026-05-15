@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: development
+  namespace: argocd
+  labels:
+    argocd.argoproj.io/secret-type: cluster
+    environment: development
+type: Opaque
+stringData:
+  name: development
+  server: https://kubernetes.default.svc
+  config: "{}"
