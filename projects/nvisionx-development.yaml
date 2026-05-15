@@ -8,6 +8,7 @@ spec:
   sourceRepos:
     - 'https://github.com/Nvision-x/*'
     - 'https://argoproj.github.io/argo-helm'
+    - 'ghcr.io/nvision-x'
     - 'ghcr.io/nvision-x/*'
   destinations:
     - server: https://kubernetes.default.svc
