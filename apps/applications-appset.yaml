@@ -13,19 +13,6 @@ spec:
             chart: processing-systems
             targetRevision: 2026.05.08-dev.4
             namespace: argocd-poc
-            values: |
-              tika:
-                enabled: true
-                autoscaling:
-                  enabled: false
-                podDisruptionBudget:
-                  enabled: false
-                serviceMonitor:
-                  enabled: false
-              kreuzberg:
-                enabled: false
-              networkPolicy:
-                enabled: false
   template:
     metadata:
       name: "{{ .name }}"
@@ -42,8 +29,19 @@ spec:
         targetRevision: "{{ .targetRevision }}"
         helm:
           releaseName: "{{ .name }}"
-          values: |
-{{ .values | nindent 12 }}
+          valuesObject:
+            tika:
+              enabled: true
+              autoscaling:
+                enabled: false
+              podDisruptionBudget:
+                enabled: false
+              serviceMonitor:
+                enabled: false
+            kreuzberg:
+              enabled: false
+            networkPolicy:
+              enabled: false
       syncPolicy:
         automated:
           prune: true
