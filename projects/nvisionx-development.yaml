@@ -4,14 +4,16 @@ metadata:
   name: nvisionx-development
   namespace: argocd
 spec:
-  description: Workloads deployed to eks-development
+  description: Workloads deployed to eks-development and eks-integration
   sourceRepos:
     - 'https://github.com/Nvision-x/*'
     - 'https://argoproj.github.io/argo-helm'
     - 'ghcr.io/nvision-x'
     - 'ghcr.io/nvision-x/*'
   destinations:
-    - server: https://kubernetes.default.svc
+    - name: eks-development
+      namespace: '*'
+    - name: eks-integration
       namespace: '*'
   clusterResourceWhitelist:
     - group: '*'
