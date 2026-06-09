@@ -16,7 +16,7 @@ spec:
         valueFiles:
           - $values/argocd/values.yaml
     - repoURL: https://github.com/Nvision-x/nx-gitops.git
-      targetRevision: HEAD
+      targetRevision: development
       ref: values
   destination:
     server: https://kubernetes.default.svc
