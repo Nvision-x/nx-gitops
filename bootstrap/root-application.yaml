@@ -9,7 +9,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/Nvision-x/nx-gitops.git
-    targetRevision: HEAD
+    targetRevision: development
     path: .
     directory:
       recurse: true

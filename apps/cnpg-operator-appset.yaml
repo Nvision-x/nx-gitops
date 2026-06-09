@@ -1,0 +1,52 @@
+# placeholder — uncomment to enable. installs ahead of the databases layer.
+#
+# apiVersion: argoproj.io/v1alpha1
+# kind: ApplicationSet
+# metadata:
+#   name: cnpg-operator
+#   namespace: argocd
+# spec:
+#   goTemplate: true
+#   goTemplateOptions: ["missingkey=error"]
+#   generators:
+#     - git:
+#         repoURL: https://github.com/Nvision-x/nxdeployment-development-env.git
+#         revision: development
+#         files:
+#           - path: environment.yaml
+#     - git:
+#         repoURL: https://github.com/Nvision-x/nxdeployment-integration-env.git
+#         revision: development
+#         files:
+#           - path: environment.yaml
+#   template:
+#     metadata:
+#       name: "cnpg-operator-{{ .environment.cluster.name }}"
+#       annotations:
+#         argocd.argoproj.io/sync-wave: "-3"
+#       finalizers:
+#         - resources-finalizer.argocd.argoproj.io
+#     spec:
+#       project: nvisionx-development
+#       destination:
+#         name: "{{ .environment.cluster.name }}"
+#         namespace: "{{ .environment.namespace }}"
+#       sources:
+#         - repoURL: "{{ .registry.url }}"
+#           chart: cnpg-operator
+#           targetRevision: "{{ .registry.defaultVersion }}"
+#           helm:
+#             releaseName: cnpg-operator
+#             valueFiles:
+#               - $envvalues/values.yaml
+#               - $envvalues/profiles/eks.yaml
+#         - repoURL: "https://github.com/Nvision-x/nxdeployment-{{ .environment.name }}-env.git"
+#           targetRevision: development
+#           ref: envvalues
+#       syncPolicy:
+#         automated:
+#           prune: true
+#           selfHeal: true
+#         syncOptions:
+#           - CreateNamespace=true
+#           - ServerSideApply=true
