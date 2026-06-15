@@ -8,32 +8,42 @@ spec:
   goTemplateOptions: ["missingkey=error"]
   # version + values come from each env's nxdeployment-<env>-env/environment.yaml
   generators:
-    - git:
-        repoURL: https://github.com/Nvision-x/nxdeployment-development-env.git
-        revision: development
-        files:
-          - path: environment.yaml
-    - git:
-        repoURL: https://github.com/Nvision-x/nxdeployment-integration-env.git
-        revision: development
-        files:
-          - path: environment.yaml
+    # one matrix per env: cross that env's environment.yaml with the layer list
+    - matrix:
+        generators:
+          - git:
+              repoURL: https://github.com/Nvision-x/nxdeployment-development-env.git
+              revision: development
+              files:
+                - path: environment.yaml
+          - list:
+              elements: &layers
+                - { chart: processing-systems }
+    - matrix:
+        generators:
+          - git:
+              repoURL: https://github.com/Nvision-x/nxdeployment-integration-env.git
+              revision: development
+              files:
+                - path: environment.yaml
+          - list:
+              elements: *layers
   template:
     metadata:
-      name: "processing-systems-{{ .environment.cluster.name }}"
+      name: "{{ .chart }}-{{ .environment.cluster.name }}"
       finalizers:
         - resources-finalizer.argocd.argoproj.io
     spec:
       project: nvisionx-development
       destination:
         name: "{{ .environment.cluster.name }}"
-        namespace: argocd-poc
+        namespace: "{{ .environment.namespace }}"
       sources:
         - repoURL: "{{ .registry.url }}"
-          chart: processing-systems
+          chart: "{{ .chart }}"
           targetRevision: "{{ .registry.defaultVersion }}"
           helm:
-            releaseName: processing-systems
+            releaseName: "{{ .chart }}"
             valueFiles:
               - $envvalues/values.yaml
               - $envvalues/profiles/eks.yaml
