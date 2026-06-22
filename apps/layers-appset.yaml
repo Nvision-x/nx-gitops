@@ -13,7 +13,7 @@ spec:
         generators:
           - git:
               repoURL: https://github.com/Nvision-x/nxdeployment-development-env.git
-              revision: development
+              revision: main
               files:
                 - path: environment.yaml
           - list:
@@ -23,7 +23,7 @@ spec:
         generators:
           - git:
               repoURL: https://github.com/Nvision-x/nxdeployment-integration-env.git
-              revision: development
+              revision: main
               files:
                 - path: environment.yaml
           - list:
@@ -48,7 +48,7 @@ spec:
               - $envvalues/values.yaml
               - $envvalues/profiles/eks.yaml
         - repoURL: "https://github.com/Nvision-x/nxdeployment-{{ .environment.name }}-env.git"
-          targetRevision: development
+          targetRevision: main
           ref: envvalues
       syncPolicy:
         automated:
