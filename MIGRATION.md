@@ -1,32 +1,43 @@
 # Migration: Helm push-deploy → ArgoCD
 
-Per target cluster: get the ArgoCD app healthy, then uninstall the push-deploy release so ArgoCD owns it. 
+Per chart, per target cluster. See `nx-application-helm`'s `MIGRATION.md` for
+what changed in each chart and why — this file is steps only.
 
-## 1. Upgrade Prometheus Operator CRDs
+## Pre-reqs (once per chart, before first cutover)
 
-Only for clusters still on `observability-crds` (~v0.70). Brand-new clusters skip
-it. development needs it.
+- [ ] Chart-side ArgoCD fixes landed and merged (see `nx-application-helm/MIGRATION.md`)
+- [ ] ApplicationSet added under `apps/` and manually synced at least once
+- [ ] Any chart-specific pre-req below is done
 
-```sh
-# In-place CRD upgrade to v0.84.1 so ArgoCD can diff the new Prometheus CR fields.
-kubectl apply --server-side --force-conflicts \
-  -f https://github.com/prometheus-operator/prometheus-operator/releases/download/v0.84.1/stripped-down-crds.yaml
-```
+## Cutover steps
 
-## 2. Confirm ArgoCD is reconciling
+1. Confirm the ArgoCD Application is `Synced`/`Healthy` — it adopts the existing
+   push-deploy resources in place, no uninstall needed first:
+   ```sh
+   kubectl -n argocd get application <chart>-<env>
+   ```
+2. Drop the push-deploy release with `--cascade orphan` so ArgoCD keeps the
+   live resources (a plain `helm uninstall` deletes them — the objects still
+   carry Helm's `meta.helm.sh/*` labels even after ArgoCD adopts them):
+   ```sh
+   helm uninstall <chart> -n default --cascade orphan
+   ```
+   Removes the release from `helm list`; leaves every live resource in place.
+3. Remove `<chart>` from the env repo's `environment.yaml` `deployment.layers`
+   list, so the CI reusable workflow never re-installs it via push-helm.
+4. Enable `automated: {prune: true, selfHeal: true}` if not already on.
 
-```sh
-# Want Synced / Healthy before removing the push-deploy release.
-kubectl -n argocd get application observability-<env>
-```
+## Chart-specific pre-reqs
 
-## 3. Uninstall the push-deploy releases
-
-```sh
-# Hands ownership to ArgoCD (recreates workloads); short monitoring/KEDA gap.
-helm uninstall processing-systems -n default
-helm uninstall observability      -n default
-helm uninstall observability-crds -n default
-```
-
-Not destructive: the Prometheus PVC, the grafana secret, and the CRDs survive (not Helm-owned).
+- **observability** (only clusters still on `observability-crds` ~v0.70;
+  brand-new clusters skip this):
+  ```sh
+  kubectl apply --server-side --force-conflicts \
+    -f https://github.com/prometheus-operator/prometheus-operator/releases/download/v0.84.1/stripped-down-crds.yaml
+  ```
+- **infrastructure / pre-infrastructure / cnpg-operator / event-systems**: none.
+- **databases**: do not cut over yet — see the external-values gap in
+  `nx-application-helm/MIGRATION.md`.
+- **applications**: known gap (knowledge-hub-be-go) documented in
+  `nx-application-helm/MIGRATION.md` — cutover is still fine, that one feature
+  just won't self-configure until fixed.
