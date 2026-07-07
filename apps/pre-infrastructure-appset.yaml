@@ -1,7 +1,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
-  name: cnpg-operator
+  name: pre-infrastructure
   namespace: argocd
 spec:
   goTemplate: true
@@ -9,20 +9,15 @@ spec:
   generators:
     - git:
         repoURL: https://github.com/Nvision-x/nxdeployment-development-env.git
-        revision: main
+        revision: feat/infrastructure-argocd
         files:
           - path: environment.yaml
-    # Integration held until development is validated. Re-enable to roll out.
-    # - git:
-    #     repoURL: https://github.com/Nvision-x/nxdeployment-integration-env.git
-    #     revision: main
-    #     files:
-    #       - path: environment.yaml
   template:
     metadata:
-      name: "cnpg-operator-{{ .environment.cluster.name }}"
+      name: "pre-infrastructure-{{ .environment.cluster.name }}"
+      # First - provides registry pull secrets for all other layers.
       annotations:
-        argocd.argoproj.io/sync-wave: "-3"
+        argocd.argoproj.io/sync-wave: "-10"
       finalizers:
         - resources-finalizer.argocd.argoproj.io
     spec:
@@ -31,16 +26,18 @@ spec:
         name: "{{ .environment.cluster.name }}"
         namespace: "{{ .environment.namespace }}"
       sources:
-        - repoURL: "{{ .registry.url }}"
-          chart: cnpg-operator
-          targetRevision: "{{ .registry.defaultVersion }}"
+        # From `argocd` branch, not OCI (OCI builds from main). Revert once merged.
+        - repoURL: https://github.com/Nvision-x/nx-application-helm.git
+          targetRevision: argocd
+          path: charts/pre-infrastructure
           helm:
-            releaseName: cnpg-operator
+            releaseName: pre-infrastructure
             valueFiles:
               - $envvalues/values.yaml
               - $envvalues/profiles/eks.yaml
+        # Env values from feat branch until merged to main.
         - repoURL: "https://github.com/Nvision-x/nxdeployment-{{ .environment.name }}-env.git"
-          targetRevision: main
+          targetRevision: feat/infrastructure-argocd
           ref: envvalues
       syncPolicy:
         automated:
@@ -48,4 +45,3 @@ spec:
           selfHeal: true
         syncOptions:
           - CreateNamespace=true
-          - ServerSideApply=true
