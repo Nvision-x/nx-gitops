@@ -23,6 +23,8 @@ spec:
   template:
     metadata:
       name: "observability-{{ .environment.cluster.name }}"
+      annotations:
+        argocd.argoproj.io/sync-wave: "-4"
       finalizers:
         - resources-finalizer.argocd.argoproj.io
     spec:

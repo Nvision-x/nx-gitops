@@ -18,7 +18,7 @@ spec:
                 - path: environment.yaml
           - list:
               elements: &layers
-                - { chart: processing-systems }
+                - { chart: processing-systems, wave: "2" }
     - matrix:
         generators:
           - git:
@@ -31,6 +31,8 @@ spec:
   template:
     metadata:
       name: "{{ .chart }}-{{ .environment.cluster.name }}"
+      annotations:
+        argocd.argoproj.io/sync-wave: "{{ .wave }}"
       finalizers:
         - resources-finalizer.argocd.argoproj.io
     spec:

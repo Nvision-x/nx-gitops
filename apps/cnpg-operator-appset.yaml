@@ -31,14 +31,16 @@ spec:
         name: "{{ .environment.cluster.name }}"
         namespace: "{{ .environment.namespace }}"
       sources:
-        - repoURL: "{{ .registry.url }}"
-          chart: cnpg-operator
-          targetRevision: "{{ .registry.defaultVersion }}"
+        # From `argocd` branch, not OCI (OCI builds from main). Revert once merged.
+        - repoURL: https://github.com/Nvision-x/nx-application-helm.git
+          targetRevision: argocd
+          path: charts/cnpg-operator
           helm:
             releaseName: cnpg-operator
             valueFiles:
               - $envvalues/values.yaml
               - $envvalues/profiles/eks.yaml
+        # Env values from env repo main branch.
         - repoURL: "https://github.com/Nvision-x/nxdeployment-{{ .environment.name }}-env.git"
           targetRevision: main
           ref: envvalues

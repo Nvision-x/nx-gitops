@@ -11,15 +11,18 @@ what changed in each chart and why — this file is steps only.
 
 ## Cutover steps
 
-1. Confirm the ArgoCD Application is `Synced`/`Healthy`:
+1. Confirm the ArgoCD Application is `Synced`/`Healthy` — it adopts the existing
+   push-deploy resources in place, no uninstall needed first:
    ```sh
    kubectl -n argocd get application <chart>-<env>
    ```
-2. Uninstall the push-deploy release so ArgoCD owns it:
+2. Drop the push-deploy release with `--cascade orphan` so ArgoCD keeps the
+   live resources (a plain `helm uninstall` deletes them — the objects still
+   carry Helm's `meta.helm.sh/*` labels even after ArgoCD adopts them):
    ```sh
-   helm uninstall <chart> -n default
+   helm uninstall <chart> -n default --cascade orphan
    ```
-   Not destructive: PVCs, Secrets, and CRDs survive (not Helm-owned).
+   Removes the release from `helm list`; leaves every live resource in place.
 3. Remove `<chart>` from the env repo's `environment.yaml` `deployment.layers`
    list, so the CI reusable workflow never re-installs it via push-helm.
 4. Enable `automated: {prune: true, selfHeal: true}` if not already on.
