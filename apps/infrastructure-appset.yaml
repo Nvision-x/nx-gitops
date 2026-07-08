@@ -66,3 +66,31 @@ spec:
             - /data/MINIO_LOGO_BUCKET
             - /data/S3_DOWNLOAD_BUCKET
             - /data/MINIO_ENDPOINT
+        # Kong admission-webhook cert: subchart genCA/genSignedCert + lookup
+        # returns nil under ArgoCD -> a new cert every render. Freeze the
+        # first-applied, internally-consistent set (both secrets + caBundle).
+        - group: ""
+          kind: Secret
+          name: infrastructure-kong-validation-webhook-ca-keypair
+          jsonPointers:
+            - /data
+        - group: ""
+          kind: Secret
+          name: infrastructure-kong-validation-webhook-keypair
+          jsonPointers:
+            - /data
+        - group: admissionregistration.k8s.io
+          kind: ValidatingWebhookConfiguration
+          name: infrastructure-kong-default-validations
+          jqPathExpressions:
+            - .webhooks[].clientConfig.caBundle
+        # Gateway: Kong controller adds the publish-service annotation; the
+        # Gateway API webhook defaults group/kind into certificateRefs.
+        - group: gateway.networking.k8s.io
+          kind: Gateway
+          name: default-gateway
+          jsonPointers:
+            - /metadata/annotations/konghq.com~1publish-service
+          jqPathExpressions:
+            - .spec.listeners[].tls.certificateRefs[].group
+            - .spec.listeners[].tls.certificateRefs[].kind
