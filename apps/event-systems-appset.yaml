@@ -48,3 +48,10 @@ spec:
         syncOptions:
           - CreateNamespace=true
           - ServerSideApply=true  # large pulsar/nats/nack CRDs
+      ignoreDifferences:
+        # K8s API defaults volumeMode=Filesystem into the immutable
+        # volumeClaimTemplates; the chart omits it -> perpetual OutOfSync.
+        - group: apps
+          kind: StatefulSet
+          jsonPointers:
+            - /spec/volumeClaimTemplates
