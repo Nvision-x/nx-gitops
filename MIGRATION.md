@@ -65,6 +65,17 @@ kubectl --context "$CTX" -n "$NS" rollout restart deployment \
 which unblocks an `infrastructure` sync failing with
 `webhook.cert-manager.io … x509: certificate signed by unknown authority`.
 
+The webhook fix is cluster-side, so ArgoCD won't know to retry on its own —
+kick a fresh compare, and if the prior auto-sync already exhausted its retries,
+trigger an explicit sync:
+
+```sh
+kubectl --context "$CTX" -n argocd annotate application infrastructure-<env> \
+  argocd.argoproj.io/refresh=hard --overwrite
+# if still not syncing (retries exhausted): ArgoCD UI → Sync, or
+# argocd app sync infrastructure-<env>
+```
+
 ## Chart-specific pre-reqs
 
 - **observability** (only clusters still on `observability-crds` ~v0.70;
