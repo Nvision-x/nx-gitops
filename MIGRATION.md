@@ -16,40 +16,54 @@ what changed in each chart and why — this file is steps only.
    ```sh
    kubectl -n argocd get application <chart>-<env>
    ```
-2. Drop the push-deploy release with `--cascade orphan` so ArgoCD keeps the
-   live resources (a plain `helm uninstall` deletes them — the objects still
-   carry Helm's `meta.helm.sh/*` labels even after ArgoCD adopts them):
+2. Make Helm forget the release WITHOUT touching any resource — delete only the
+   release storage Secret. ArgoCD already manages the resources, so this is a
+   clean hand-off: nothing deleted, no restart needed:
    ```sh
-   helm uninstall <chart> -n default --cascade orphan
+   kubectl delete secret -n <ns> -l owner=helm,name=<chart>
    ```
-   Removes the release from `helm list`; leaves every live resource in place.
+   Do NOT use `helm uninstall --cascade orphan`: despite the name it DELETES the
+   release's objects (ServiceAccounts, ClusterRoles, Deployments…) and only
+   orphans their pods. ArgoCD self-heals them back, but recreated ServiceAccounts
+   get new UIDs — API-watching operators keep presenting stale tokens and
+   crashloop with `401 Unauthorized` until their pods are recreated (see Recovery).
 3. Remove `<chart>` from the env repo's `environment.yaml` `deployment.layers`
    list, so the CI reusable workflow never re-installs it via push-helm.
 4. Enable `automated: {prune: true, selfHeal: true}` if not already on.
 
 ## Foundation charts cutover (copy-paste)
 
-Once the ArgoCD Applications are `Synced`/`Healthy`, hand the foundation charts
-off from push-deploy. Orphan uninstall drops only the Helm release metadata —
-every live resource (pods, StatefulSets, PVCs, Services) keeps running, ArgoCD
-stays in control. Safe on stateful PVCs (e.g. `event-systems`); no data loss,
-no downtime.
+Once the ArgoCD Applications are `Synced`/`Healthy`, make Helm forget the
+foundation releases without touching any resource (ArgoCD keeps managing them —
+no deletion, no restart, no downtime):
 
 ```sh
 CTX=<cluster-context>   # kube-context for this env's cluster
 NS=<namespace>          # this env's namespace from environment.yaml
 
 for chart in pre-infrastructure infrastructure cnpg-operator event-systems; do
-  helm uninstall "$chart" -n "$NS" --kube-context "$CTX" --cascade orphan
+  kubectl --context "$CTX" -n "$NS" delete secret -l "owner=helm,name=$chart"
 done
 ```
 
 Then merge the `nxdeployment-<env>-env` PR that removes these from
 `deployment.layers` so push-helm CI stops re-managing them.
 
-> Do NOT use a plain `helm uninstall` (default `--cascade background`) — it
-> deletes the live resources and forces a full restart of the Pulsar/NATS
-> cluster.
+### Recovery: operators crashlooping after cutover (401 Unauthorized)
+
+If a release was instead removed with `helm uninstall --cascade orphan` (or the
+ServiceAccounts were otherwise deleted and recreated), API-watching operators
+keep presenting stale tokens and crashloop with `401 Unauthorized`. Recreate the
+pods so they pick up fresh tokens:
+
+```sh
+kubectl --context "$CTX" -n "$NS" rollout restart deployment \
+  cert-manager-cainjector keda-operator
+```
+
+`cert-manager-cainjector` then re-injects the cert-manager webhook CA bundle,
+which unblocks an `infrastructure` sync failing with
+`webhook.cert-manager.io … x509: certificate signed by unknown authority`.
 
 ## Chart-specific pre-reqs
 
