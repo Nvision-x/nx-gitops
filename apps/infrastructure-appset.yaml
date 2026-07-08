@@ -89,8 +89,13 @@ spec:
         - group: gateway.networking.k8s.io
           kind: Gateway
           name: default-gateway
+          # kong-ingress-controller mutates the Gateway (adds publish-service
+          # annotation, defaults group/kind into certificateRefs). Ignore its
+          # fields; jsonPointers pin the exact certificateRefs defaults (the
+          # earlier jqPathExpressions errored on the no-tls http listener).
+          managedFieldsManagers:
+            - kong-ingress-controller
           jsonPointers:
             - /metadata/annotations/konghq.com~1publish-service
-          jqPathExpressions:
-            - .spec.listeners[].tls.certificateRefs[].group
-            - .spec.listeners[].tls.certificateRefs[].kind
+            - /spec/listeners/1/tls/certificateRefs/0/group
+            - /spec/listeners/1/tls/certificateRefs/0/kind
