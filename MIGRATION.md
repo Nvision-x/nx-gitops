@@ -27,20 +27,24 @@ what changed in each chart and why — this file is steps only.
    list, so the CI reusable workflow never re-installs it via push-helm.
 4. Enable `automated: {prune: true, selfHeal: true}` if not already on.
 
-## eks-development cutover (copy-paste)
+## Foundation charts cutover (copy-paste)
 
-The 4 foundation charts are ArgoCD-managed and `Synced`/`Healthy`. Orphan
-uninstall drops only the Helm release metadata — every live resource (pods,
-StatefulSets, PVCs, Services) keeps running, ArgoCD stays in control. Safe on
-the stateful `event-systems` PVCs; no data loss, no downtime.
+Once the ArgoCD Applications are `Synced`/`Healthy`, hand the foundation charts
+off from push-deploy. Orphan uninstall drops only the Helm release metadata —
+every live resource (pods, StatefulSets, PVCs, Services) keeps running, ArgoCD
+stays in control. Safe on stateful PVCs (e.g. `event-systems`); no data loss,
+no downtime.
 
 ```sh
+CTX=<cluster-context>   # kube-context for this env's cluster
+NS=<namespace>          # this env's namespace from environment.yaml
+
 for chart in pre-infrastructure infrastructure cnpg-operator event-systems; do
-  helm uninstall "$chart" -n default --kube-context eks-development --cascade orphan
+  helm uninstall "$chart" -n "$NS" --kube-context "$CTX" --cascade orphan
 done
 ```
 
-Then merge the `nxdeployment-development-env` PR that removes these from
+Then merge the `nxdeployment-<env>-env` PR that removes these from
 `deployment.layers` so push-helm CI stops re-managing them.
 
 > Do NOT use a plain `helm uninstall` (default `--cascade background`) — it
