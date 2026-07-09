@@ -9,7 +9,7 @@ spec:
   generators:
     - git:
         repoURL: https://github.com/Nvision-x/nxdeployment-development-env.git
-        revision: feat/infrastructure-argocd
+        revision: main
         files:
           - path: environment.yaml
   template:
@@ -35,9 +35,9 @@ spec:
             valueFiles:
               - $envvalues/values.yaml
               - $envvalues/profiles/eks.yaml
-        # Env values from feat/infrastructure-argocd until merged.
+        # Env values from env repo main branch.
         - repoURL: "https://github.com/Nvision-x/nxdeployment-{{ .environment.name }}-env.git"
-          targetRevision: feat/infrastructure-argocd
+          targetRevision: main
           ref: envvalues
       syncPolicy:
         automated:
@@ -64,3 +64,36 @@ spec:
             - /data/MINIO_LOGO_BUCKET
             - /data/S3_DOWNLOAD_BUCKET
             - /data/MINIO_ENDPOINT
+        # Kong admission-webhook cert: subchart genCA/genSignedCert + lookup
+        # returns nil under ArgoCD -> a new cert every render. Freeze the
+        # first-applied, internally-consistent set (both secrets + caBundle).
+        - group: ""
+          kind: Secret
+          name: infrastructure-kong-validation-webhook-ca-keypair
+          jsonPointers:
+            - /data
+        - group: ""
+          kind: Secret
+          name: infrastructure-kong-validation-webhook-keypair
+          jsonPointers:
+            - /data
+        - group: admissionregistration.k8s.io
+          kind: ValidatingWebhookConfiguration
+          name: infrastructure-kong-default-validations
+          jqPathExpressions:
+            - .webhooks[].clientConfig.caBundle
+        # Gateway: Kong controller adds the publish-service annotation; the
+        # Gateway API webhook defaults group/kind into certificateRefs.
+        - group: gateway.networking.k8s.io
+          kind: Gateway
+          name: default-gateway
+          # kong-ingress-controller mutates the Gateway (adds publish-service
+          # annotation, defaults group/kind into certificateRefs). Ignore its
+          # fields; jsonPointers pin the exact certificateRefs defaults (the
+          # earlier jqPathExpressions errored on the no-tls http listener).
+          managedFieldsManagers:
+            - kong-ingress-controller
+          jsonPointers:
+            - /metadata/annotations/konghq.com~1publish-service
+            - /spec/listeners/1/tls/certificateRefs/0/group
+            - /spec/listeners/1/tls/certificateRefs/0/kind

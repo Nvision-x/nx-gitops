@@ -9,7 +9,7 @@ spec:
   generators:
     - git:
         repoURL: https://github.com/Nvision-x/nxdeployment-development-env.git
-        revision: feat/infrastructure-argocd
+        revision: main
         files:
           - path: environment.yaml
   template:
@@ -35,9 +35,9 @@ spec:
             valueFiles:
               - $envvalues/values.yaml
               - $envvalues/profiles/eks.yaml
-        # Env values from feat branch until merged.
+        # Env values from env repo main branch.
         - repoURL: "https://github.com/Nvision-x/nxdeployment-{{ .environment.name }}-env.git"
-          targetRevision: feat/infrastructure-argocd
+          targetRevision: main
           ref: envvalues
       syncPolicy:
         automated:
