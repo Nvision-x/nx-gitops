@@ -12,7 +12,7 @@ spec:
         revision: main
         files:
           - path: environment.yaml
-    # Integration held until development is validated. Re-enable to roll out.
+    # Integration: re-enable once development is validated.
     # - git:
     #     repoURL: https://github.com/Nvision-x/nxdeployment-integration-env.git
     #     revision: main
@@ -31,7 +31,7 @@ spec:
         name: "{{ .environment.cluster.name }}"
         namespace: "{{ .environment.namespace }}"
       sources:
-        # From `argocd` branch, not OCI (OCI builds from main). Revert once merged.
+        # argocd branch, not OCI. Revert to OCI once merged & published.
         - repoURL: https://github.com/Nvision-x/nx-application-helm.git
           targetRevision: argocd
           path: charts/databases
@@ -51,10 +51,9 @@ spec:
         syncOptions:
           - CreateNamespace=true
           - ServerSideApply=true
-      # The chart renders these keys blank (their `lookup` returns nil under
-      # ArgoCD's server-side render); the external-db-config-sync PostSync Job
-      # fills them in-cluster from infra-config / infra-secrets. Without these
-      # entries, selfHeal would revert the Job's values to blank every sync.
+      # Chart renders these keys blank (lookup returns nil under ArgoCD render);
+      # external-db-config-sync Job fills them in-cluster. Without this, selfHeal
+      # reverts them to blank each sync.
       ignoreDifferences:
         - group: ""
           kind: ConfigMap

@@ -15,7 +15,7 @@ spec:
   template:
     metadata:
       name: "pre-infrastructure-{{ .environment.cluster.name }}"
-      # First - provides registry pull secrets for all other layers.
+      # First: provides registry pull secrets for all layers.
       annotations:
         argocd.argoproj.io/sync-wave: "-10"
       finalizers:
@@ -26,7 +26,7 @@ spec:
         name: "{{ .environment.cluster.name }}"
         namespace: "{{ .environment.namespace }}"
       sources:
-        # From `argocd` branch, not OCI (OCI builds from main). Revert once merged.
+        # argocd branch, not OCI. Revert to OCI once merged & published.
         - repoURL: https://github.com/Nvision-x/nx-application-helm.git
           targetRevision: argocd
           path: charts/pre-infrastructure
@@ -35,7 +35,7 @@ spec:
             valueFiles:
               - $envvalues/values.yaml
               - $envvalues/profiles/eks.yaml
-        # Env values from feat branch until merged to main.
+        # Env values from feat branch until merged.
         - repoURL: "https://github.com/Nvision-x/nxdeployment-{{ .environment.name }}-env.git"
           targetRevision: feat/infrastructure-argocd
           ref: envvalues

@@ -6,7 +6,7 @@ metadata:
 spec:
   goTemplate: true
   goTemplateOptions: ["missingkey=error"]
-  # version + values come from each env's nxdeployment-<env>-env/environment.yaml
+  # version + values from each env's environment.yaml
   generators:
     # one matrix per env: cross that env's environment.yaml with the layer list
     - matrix:
