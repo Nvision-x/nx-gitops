@@ -26,9 +26,9 @@ spec:
         name: "{{ .environment.cluster.name }}"
         namespace: "{{ .environment.namespace }}"
       sources:
-        # From `argocd` branch, not OCI (OCI builds from main). Revert once merged.
-        # Deps (pulsar, nats, nack) aren't vendored - repo-server must reach
-        # pulsar.apache.org + nats-io.github.io at render time.
+        # argocd branch, not OCI. Revert to OCI once merged & published.
+        # Deps not vendored: repo-server needs pulsar.apache.org +
+        # nats-io.github.io reachable at render time.
         - repoURL: https://github.com/Nvision-x/nx-application-helm.git
           targetRevision: argocd
           path: charts/event-systems

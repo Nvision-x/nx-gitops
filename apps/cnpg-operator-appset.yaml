@@ -12,7 +12,7 @@ spec:
         revision: main
         files:
           - path: environment.yaml
-    # Integration held until development is validated. Re-enable to roll out.
+    # Integration: re-enable once development is validated.
     # - git:
     #     repoURL: https://github.com/Nvision-x/nxdeployment-integration-env.git
     #     revision: main
@@ -31,7 +31,7 @@ spec:
         name: "{{ .environment.cluster.name }}"
         namespace: "{{ .environment.namespace }}"
       sources:
-        # From `argocd` branch, not OCI (OCI builds from main). Revert once merged.
+        # argocd branch, not OCI. Revert to OCI once merged & published.
         - repoURL: https://github.com/Nvision-x/nx-application-helm.git
           targetRevision: argocd
           path: charts/cnpg-operator

@@ -12,7 +12,7 @@ spec:
         revision: main
         files:
           - path: environment.yaml
-    # Integration held until development is validated. Re-enable to roll out.
+    # Integration: re-enable once development is validated.
     # - git:
     #     repoURL: https://github.com/Nvision-x/nxdeployment-integration-env.git
     #     revision: main
@@ -22,8 +22,7 @@ spec:
     metadata:
       name: "applications-{{ .environment.cluster.name }}"
       annotations:
-        # Last layer: deploys after databases (0), event-systems (1) and
-        # processing-systems (2) are up.
+        # Last layer (after databases, event-systems, processing-systems).
         argocd.argoproj.io/sync-wave: "3"
       finalizers:
         - resources-finalizer.argocd.argoproj.io
@@ -33,7 +32,7 @@ spec:
         name: "{{ .environment.cluster.name }}"
         namespace: "{{ .environment.namespace }}"
       sources:
-        # From `argocd` branch, not OCI (OCI builds from main). Revert once merged.
+        # argocd branch, not OCI. Revert to OCI once merged & published.
         - repoURL: https://github.com/Nvision-x/nx-application-helm.git
           targetRevision: argocd
           path: charts/applications
@@ -53,7 +52,10 @@ spec:
         syncOptions:
           - CreateNamespace=true
           - ServerSideApply=true
-      # No ignoreDifferences needed: the chart's only in-cluster-dependent
-      # resources are Helm hooks (api-key-secret-job PreSync, snowflake register
-      # PostSync), which ArgoCD tracks as hooks — not synced/pruned resources.
-      # Unlike `databases`, no rendered ConfigMap/Secret is patched post-sync.
+      # KEDA scales connectors to 0 when idle; chart sets replicas: 1.
+      # Ignore replicas so selfHeal doesn't fight KEDA (flapping / pod thrash).
+      ignoreDifferences:
+        - group: apps
+          kind: Deployment
+          jqPathExpressions:
+            - .spec.replicas
