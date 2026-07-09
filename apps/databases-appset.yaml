@@ -1,0 +1,90 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: databases
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - git:
+        repoURL: https://github.com/Nvision-x/nxdeployment-development-env.git
+        revision: main
+        files:
+          - path: environment.yaml
+    # Integration held until development is validated. Re-enable to roll out.
+    # - git:
+    #     repoURL: https://github.com/Nvision-x/nxdeployment-integration-env.git
+    #     revision: main
+    #     files:
+    #       - path: environment.yaml
+  template:
+    metadata:
+      name: "databases-{{ .environment.cluster.name }}"
+      annotations:
+        argocd.argoproj.io/sync-wave: "0"
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io
+    spec:
+      project: nvisionx-development
+      destination:
+        name: "{{ .environment.cluster.name }}"
+        namespace: "{{ .environment.namespace }}"
+      sources:
+        # From `argocd` branch, not OCI (OCI builds from main). Revert once merged.
+        - repoURL: https://github.com/Nvision-x/nx-application-helm.git
+          targetRevision: argocd
+          path: charts/databases
+          helm:
+            releaseName: databases
+            valueFiles:
+              - $envvalues/values.yaml
+              - $envvalues/profiles/eks.yaml
+        # Env values from env repo main branch.
+        - repoURL: "https://github.com/Nvision-x/nxdeployment-{{ .environment.name }}-env.git"
+          targetRevision: main
+          ref: envvalues
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+          - ServerSideApply=true
+      # The chart renders these keys blank (their `lookup` returns nil under
+      # ArgoCD's server-side render); the external-db-config-sync PostSync Job
+      # fills them in-cluster from infra-config / infra-secrets. Without these
+      # entries, selfHeal would revert the Job's values to blank every sync.
+      ignoreDifferences:
+        - group: ""
+          kind: ConfigMap
+          name: databases-postgresql-env
+          jsonPointers:
+            - /data/DB_USERNAME
+            - /data/ALERTS_DB_HOST
+            - /data/HOST_SERVER
+            - /data/NX_MAIN_DB_USERNAME
+            - /data/NX_MAIN_HOST_SERVER
+        - group: ""
+          kind: ConfigMap
+          name: databases-opensearch-env
+          jsonPointers:
+            - /data/ELASTICSEARCH_HOST
+            - /data/ELASTICSEARCH_USER
+            - /data/OPENSEARCH_URL
+        - group: ""
+          kind: Secret
+          name: databases-postgresql-credentials
+          jsonPointers:
+            - /data/POSTGRES_PASSWORD
+            - /data/DB_PASSWORD
+            - /data/DATABASE_PASSWORD
+            - /data/NVISNX_PASSWORD
+            - /data/NX_MAIN_DB_PASSWORD
+        - group: ""
+          kind: Secret
+          name: databases-opensearch-credentials
+          jsonPointers:
+            - /data/ELASTICSEARCH_PASSWORD
+            - /data/OPENSEARCH_PASSWORD
+            - /data/OPENSEARCH_INITIAL_ADMIN_PASSWORD
