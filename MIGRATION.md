@@ -1,97 +1,119 @@
-# Migration: Helm push-deploy → ArgoCD
+# Playbook: Helm push-deploy → ArgoCD
 
-Per chart, per target cluster. See `nx-application-helm`'s `MIGRATION.md` for
-what changed in each chart and why — this file is steps only.
+Per environment. Chart-side changes are already merged; see `nx-application-helm/MIGRATION.md` for what changed and why. This file is the run-order.
 
-## Pre-reqs (once per chart, before first cutover)
-
-- [ ] Chart-side ArgoCD fixes landed and merged (see `nx-application-helm/MIGRATION.md`)
-- [ ] ApplicationSet added under `apps/` and manually synced at least once
-- [ ] Any chart-specific pre-req below is done
-
-## Cutover steps
-
-1. Confirm the ArgoCD Application is `Synced`/`Healthy` — it adopts the existing
-   push-deploy resources in place, no uninstall needed first:
-   ```sh
-   kubectl -n argocd get application <chart>-<env>
-   ```
-2. Make Helm forget the release WITHOUT touching any resource — delete only the
-   release storage Secret. ArgoCD already manages the resources, so this is a
-   clean hand-off: nothing deleted, no restart needed:
-   ```sh
-   kubectl delete secret -n <ns> -l owner=helm,name=<chart>
-   ```
-   Do NOT use `helm uninstall --cascade orphan`: despite the name it DELETES the
-   release's objects (ServiceAccounts, ClusterRoles, Deployments…) and only
-   orphans their pods. ArgoCD self-heals them back, but recreated ServiceAccounts
-   get new UIDs — API-watching operators keep presenting stale tokens and
-   crashloop with `401 Unauthorized` until their pods are recreated (see Recovery).
-3. Remove `<chart>` from the env repo's `environment.yaml` `deployment.layers`
-   list, so the CI reusable workflow never re-installs it via push-helm.
-4. Enable `automated: {prune: true, selfHeal: true}` if not already on.
-
-## Foundation charts cutover (copy-paste)
-
-Once the ArgoCD Applications are `Synced`/`Healthy`, make Helm forget the
-foundation releases without touching any resource (ArgoCD keeps managing them —
-no deletion, no restart, no downtime):
+Set the namespace once (kubectl must already point at the target cluster):
 
 ```sh
-CTX=<cluster-context>   # kube-context for this env's cluster
-NS=<namespace>          # this env's namespace from environment.yaml
+NS=<namespace>   # this env's namespace from its environment.yaml
+```
 
-for chart in pre-infrastructure infrastructure cnpg-operator event-systems; do
-  kubectl --context "$CTX" -n "$NS" delete secret -l "owner=helm,name=$chart"
+## Prerequisites
+
+- Env repo `nxdeployment-<env>-env` exists with `environment.yaml`.
+- The env's cluster is reachable and registered in the central ArgoCD (mimir).
+- Chart-side ArgoCD fixes are merged (they are, globally).
+
+## Step 1 — Enable the env in the appsets
+
+In each `apps/*-appset.yaml`, uncomment (or add) this env's entry under `generators`. Commit and push to the branch the root app tracks (`development`). The central ArgoCD then generates the Applications.
+
+Layers and sync-waves (created in this order automatically):
+
+```
+pre-infrastructure  -10
+infrastructure       -5
+observability        -4
+cnpg-operator        -3
+databases             0
+event-systems         1
+processing-systems    2
+applications          3
+```
+
+## Step 2 — Chart-specific pre-reqs (before cutover)
+
+Only `observability`, and only on clusters still running the old `observability-crds` (~v0.70). Brand-new clusters skip this:
+
+```sh
+kubectl apply --server-side --force-conflicts \
+  -f https://github.com/prometheus-operator/prometheus-operator/releases/download/v0.84.1/stripped-down-crds.yaml
+```
+
+No pre-reqs for the other layers.
+
+## Step 3 — Wait for all Applications Synced/Healthy
+
+ArgoCD adopts the existing push-deploy resources in place — no uninstall first.
+
+```sh
+kubectl -n argocd get applications | grep <env>
+```
+
+All 8 must read `Synced` / `Healthy` before Step 4. If one is stuck `OutOfSync`, force a fresh compare:
+
+```sh
+kubectl -n argocd annotate application <chart>-<env> \
+  argocd.argoproj.io/refresh=hard --overwrite
+```
+
+## Step 4 — Hand off Helm → ArgoCD
+
+Delete only the Helm release-storage Secret for each chart. This makes Helm forget the release WITHOUT touching any resource — ArgoCD keeps managing them. No deletion, no restart, no downtime:
+
+```sh
+for chart in pre-infrastructure infrastructure observability cnpg-operator \
+             databases event-systems processing-systems applications; do
+  kubectl -n "$NS" delete secret -l "owner=helm,name=$chart" --ignore-not-found
 done
 ```
 
-Then merge the `nxdeployment-<env>-env` PR that removes these from
-`deployment.layers` so push-helm CI stops re-managing them.
-
-### Recovery: operators crashlooping after cutover (401 Unauthorized)
-
-If a release was instead removed with `helm uninstall --cascade orphan` (or the
-ServiceAccounts were otherwise deleted and recreated), API-watching operators
-keep presenting stale tokens and crashloop with `401 Unauthorized`. Recreate the
-pods so they pick up fresh tokens:
+Confirm Helm no longer tracks anything:
 
 ```sh
-kubectl --context "$CTX" -n "$NS" rollout restart deployment \
-  cert-manager-cainjector keda-operator
+helm -n "$NS" list -a
 ```
 
-`cert-manager-cainjector` then re-injects the cert-manager webhook CA bundle,
-which unblocks an `infrastructure` sync failing with
-`webhook.cert-manager.io … x509: certificate signed by unknown authority`.
+## Step 5 — Stop push-helm CI
 
-The webhook fix is cluster-side, so ArgoCD won't know to retry on its own —
-kick a fresh compare, and if the prior auto-sync already exhausted its retries,
-trigger an explicit sync:
+Open a PR on `nxdeployment-<env>-env` that empties the layer list, so the reusable workflow stops re-installing:
+
+```yaml
+deployment:
+  layers: []
+```
+
+## Step 6 — Verify
 
 ```sh
-kubectl --context "$CTX" -n argocd annotate application infrastructure-<env> \
+kubectl -n argocd get applications | grep <env>
+kubectl -n "$NS" get pods | grep -vE "Running|Completed"
+helm -n "$NS" list -a
+```
+
+Expect: all apps Synced/Healthy, no bad pods, no Helm releases.
+
+## NEVER: helm uninstall
+
+`helm uninstall` (even `--cascade orphan`) DELETES the release's objects (ServiceAccounts, ClusterRoles, Deployments). ArgoCD self-heals them, but recreated ServiceAccounts get new UIDs — API-watching operators keep presenting stale tokens and crashloop `401 Unauthorized`. Use Step 4 instead.
+
+## Recovery: operators crashlooping (401 Unauthorized)
+
+If SAs were deleted/recreated (e.g. an accidental uninstall), recreate the pods so they pick up fresh tokens:
+
+```sh
+kubectl -n "$NS" rollout restart deployment cert-manager-cainjector keda-operator
+```
+
+`cert-manager-cainjector` re-injects the webhook CA bundle, unblocking an `infrastructure` sync failing with `x509: certificate signed by unknown authority`. That fix is cluster-side, so kick a fresh compare:
+
+```sh
+kubectl -n argocd annotate application infrastructure-<env> \
   argocd.argoproj.io/refresh=hard --overwrite
-# if still not syncing (retries exhausted): ArgoCD UI → Sync, or
-# argocd app sync infrastructure-<env>
 ```
 
-## Chart-specific pre-reqs
+## Notes per chart
 
-- **observability** (only clusters still on `observability-crds` ~v0.70;
-  brand-new clusters skip this):
-  ```sh
-  kubectl apply --server-side --force-conflicts \
-    -f https://github.com/prometheus-operator/prometheus-operator/releases/download/v0.84.1/stripped-down-crds.yaml
-  ```
-- **infrastructure / pre-infrastructure / cnpg-operator / event-systems**: none.
-- **databases**: ready. The external-values gap is closed by the
-  `external-db-config-sync` PostSync Job (see `nx-application-helm/MIGRATION.md`),
-  and `apps/databases-appset.yaml` already carries the matching
-  `ignoreDifferences` block so `selfHeal` won't revert the Job's values.
-- **applications**: `apps/applications-appset.yaml` is in place (sync-wave `3`,
-  last layer; no `ignoreDifferences` needed — its only cluster-dependent
-  resources are Helm hooks). Chart still carries one `lookup` in
-  `knowledge-hub-be-go` — closed by `nx-application-helm` PR #976 (merge with
-  env-repo PR #1765). Cutover is still fine before that lands; that one feature
-  (Neptune / S3 Vectors) just won't self-configure until it does.
+- **databases** — external DB host/user/password come from a PostSync Job (`external-db-config-sync`); `databases-appset.yaml` carries the matching `ignoreDifferences` so selfHeal doesn't revert them.
+- **applications** — `applications-appset.yaml` ignores Deployment `/spec/replicas` so ArgoCD selfHeal doesn't fight KEDA scale-to-zero.
+- **event-systems** — repo-server must reach `pulsar.apache.org` and `nats-io.github.io` at render time (deps are not vendored).
