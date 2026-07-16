@@ -15,11 +15,13 @@ spec:
         revision: main
         files:
           - path: environment.yaml
-    - git:
-        repoURL: https://github.com/Nvision-x/nxdeployment-integration-env.git
-        revision: main
-        files:
-          - path: environment.yaml
+    # Integration rolled back to helm (deployment.method defaults to helm in its
+    # environment.yaml). Re-enable once integration is cut over to argocd.
+    # - git:
+    #     repoURL: https://github.com/Nvision-x/nxdeployment-integration-env.git
+    #     revision: main
+    #     files:
+    #       - path: environment.yaml
   template:
     metadata:
       name: "observability-{{ .environment.cluster.name }}"
