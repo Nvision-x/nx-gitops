@@ -1,0 +1,11 @@
+apiVersion: tailscale.com/v1alpha1
+kind: Connector
+metadata:
+  name: nx-shared-vpc
+spec:
+  hostname: nx-shared-vpc-router
+  tags:
+    - tag:k8s
+  subnetRouter:
+    advertiseRoutes:
+      - 10.4.0.0/16

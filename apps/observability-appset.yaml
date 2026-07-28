@@ -6,6 +6,10 @@ metadata:
 spec:
   goTemplate: true
   goTemplateOptions: ["missingkey=error"]
+  # Orphan (don't cascade-delete) deployed resources when a generated
+  # Application is removed from this set.
+  syncPolicy:
+    preserveResourcesOnDeletion: true
   # values come from each env's environment.yaml
   # separate from layers: needs ServerSideApply (CRDs exceed 262KB)
   generators:
@@ -25,8 +29,6 @@ spec:
       name: "observability-{{ .environment.cluster.name }}"
       annotations:
         argocd.argoproj.io/sync-wave: "-4"
-      finalizers:
-        - resources-finalizer.argocd.argoproj.io
     spec:
       project: nvisionx-development
       destination:

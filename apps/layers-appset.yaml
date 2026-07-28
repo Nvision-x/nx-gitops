@@ -6,6 +6,10 @@ metadata:
 spec:
   goTemplate: true
   goTemplateOptions: ["missingkey=error"]
+  # Orphan (don't cascade-delete) deployed resources when a generated
+  # Application is removed from this set.
+  syncPolicy:
+    preserveResourcesOnDeletion: true
   # version + values from each env's environment.yaml
   generators:
     # one matrix per env: cross that env's environment.yaml with the layer list
@@ -33,8 +37,6 @@ spec:
       name: "{{ .chart }}-{{ .environment.cluster.name }}"
       annotations:
         argocd.argoproj.io/sync-wave: "{{ .wave }}"
-      finalizers:
-        - resources-finalizer.argocd.argoproj.io
     spec:
       project: nvisionx-development
       destination:
