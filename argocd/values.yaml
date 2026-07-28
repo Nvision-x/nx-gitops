@@ -14,7 +14,8 @@ server:
     path: /
     pathType: Prefix
     annotations:
-      alb.ingress.kubernetes.io/scheme: internet-facing
+      alb.ingress.kubernetes.io/scheme: internal
+      alb.ingress.kubernetes.io/inbound-cidrs: 10.4.0.0/16
       alb.ingress.kubernetes.io/target-type: ip
       alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80},{"HTTPS":443}]'
       alb.ingress.kubernetes.io/ssl-redirect: "443"
@@ -22,7 +23,7 @@ server:
       alb.ingress.kubernetes.io/backend-protocol: HTTP
       alb.ingress.kubernetes.io/healthcheck-path: /healthz
       alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:us-east-1:787858641133:certificate/908c2ba5-41c3-4b61-ac92-e7dffbd4e087
-      alb.ingress.kubernetes.io/group.name: argocd
+      alb.ingress.kubernetes.io/group.name: argocd-internal
 
 controller:
   replicas: 1
