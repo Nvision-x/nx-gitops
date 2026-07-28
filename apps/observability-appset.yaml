@@ -14,13 +14,9 @@ spec:
   # separate from layers: needs ServerSideApply (CRDs exceed 262KB)
   generators:
     # one app per env
+    # (integration removed: rolled back to helm-based deploys)
     - git:
         repoURL: https://github.com/Nvision-x/nxdeployment-development-env.git
-        revision: main
-        files:
-          - path: environment.yaml
-    - git:
-        repoURL: https://github.com/Nvision-x/nxdeployment-integration-env.git
         revision: main
         files:
           - path: environment.yaml
