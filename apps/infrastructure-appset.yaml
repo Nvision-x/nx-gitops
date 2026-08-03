@@ -6,30 +6,47 @@ metadata:
 spec:
   goTemplate: true
   goTemplateOptions: ["missingkey=error"]
+  # Orphan (don't cascade-delete) deployed resources when a generated
+  # Application is removed from this set.
+  syncPolicy:
+    preserveResourcesOnDeletion: true
   generators:
+    # Envs opt in via deployment.method: argocd in their environment.yaml.
     - git:
         repoURL: https://github.com/Nvision-x/nxdeployment-development-env.git
         revision: main
         files:
           - path: environment.yaml
+        values:
+          method: '{{ dig "deployment" "method" "helm" . }}'
+      selector:
+        matchLabels:
+          values.method: argocd
+    - git:
+        repoURL: https://github.com/Nvision-x/nxdeployment-integration-env.git
+        revision: main
+        files:
+          - path: environment.yaml
+        values:
+          method: '{{ dig "deployment" "method" "helm" . }}'
+      selector:
+        matchLabels:
+          values.method: argocd
   template:
     metadata:
       name: "infrastructure-{{ .environment.cluster.name }}"
       annotations:
         argocd.argoproj.io/sync-wave: "-5"
-      finalizers:
-        - resources-finalizer.argocd.argoproj.io
     spec:
       project: nvisionx-development
       destination:
         name: "{{ .environment.cluster.name }}"
         namespace: "{{ .environment.namespace }}"
       sources:
-        # argocd branch, not OCI (keeps the refactor off other envs).
-        # Revert to OCI once merged & published.
-        - repoURL: https://github.com/Nvision-x/nx-application-helm.git
-          targetRevision: argocd
-          path: charts/infrastructure
+        # OCI mainline chart — same artifact the helm workflow installs.
+        - repoURL: "{{ .registry.url }}"
+          chart: infrastructure
+          targetRevision: "{{ .registry.defaultVersion }}"
           helm:
             releaseName: infrastructure
             valueFiles:
