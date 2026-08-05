@@ -8,9 +8,10 @@ metadata:
 spec:
   project: default
   sources:
-    - repoURL: https://argoproj.github.io/argo-helm
-      chart: argo-cd
-      targetRevision: 9.6.0
+    - repoURL: ghcr.io/nvision-x
+      chart: argocd
+      # Update to the version published from nx-application-helm PR #1073 before merge.
+      targetRevision: 0000.00.00-SET-AFTER-PR-1073
       helm:
         releaseName: argocd
         valueFiles:
