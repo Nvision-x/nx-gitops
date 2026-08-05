@@ -10,8 +10,7 @@ spec:
   sources:
     - repoURL: ghcr.io/nvision-x
       chart: argocd
-      # Update to the version published from nx-application-helm PR #1073 before merge.
-      targetRevision: 0000.00.00-SET-AFTER-PR-1073
+      targetRevision: 2026.08.05-dev.4
       helm:
         releaseName: argocd
         valueFiles:
