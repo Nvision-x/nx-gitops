@@ -8,8 +8,7 @@ spec:
   sources:
     - repoURL: ghcr.io/nvision-x
       chart: argocd-control-plane
-      # Set to the version published from nx-application-helm PR #1127 before merge.
-      targetRevision: 0000.00.00-SET-AFTER-PR-1127
+      targetRevision: 2026.08.14-dev.1
       helm:
         releaseName: control-plane
         valueFiles:
