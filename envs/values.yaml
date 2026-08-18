@@ -1,6 +1,4 @@
-# Internal envs control-plane overlay. Consumed by apps/control-plane.yaml.
-# Keep this two dirs deep: the root app's include glob ('*/*.yaml') only matches
-# one level, so a values file at envs/values.yaml would be applied as a manifest.
+# Control-plane overlay for our internal envs. Consumed by apps/control-plane.yaml.
 project:
   name: nvisionx-development
   description: Workloads deployed to eks-development and eks-integration
