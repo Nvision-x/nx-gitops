@@ -1,0 +1,25 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: control-plane
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: ghcr.io/nvision-x
+      chart: argocd-control-plane
+      targetRevision: 2026.08.14-dev.1
+      helm:
+        releaseName: control-plane
+        valueFiles:
+          - $values/envs/internal/values.yaml
+    - repoURL: https://github.com/Nvision-x/nx-gitops.git
+      targetRevision: development
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

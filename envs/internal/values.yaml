@@ -1,0 +1,26 @@
+# Internal envs control-plane overlay. Consumed by apps/control-plane.yaml.
+# Keep this two dirs deep: the root app's include glob ('*/*.yaml') only matches
+# one level, so a values file at envs/values.yaml would be applied as a manifest.
+project:
+  name: nvisionx-development
+  description: Workloads deployed to eks-development and eks-integration
+  sourceRepos:
+    - "https://github.com/Nvision-x/*"
+    - "https://argoproj.github.io/argo-helm"
+    - "ghcr.io/nvision-x"
+    - "ghcr.io/nvision-x/*"
+  destinations:
+    - name: eks-development
+      namespace: "*"
+    - name: eks-integration
+      namespace: "*"
+
+environments:
+  - name: development
+    envRepo:
+      url: https://github.com/Nvision-x/nxdeployment-development-env.git
+      revision: main
+  - name: integration
+    envRepo:
+      url: https://github.com/Nvision-x/nxdeployment-integration-env.git
+      revision: main
