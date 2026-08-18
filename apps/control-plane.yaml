@@ -12,7 +12,7 @@ spec:
       helm:
         releaseName: control-plane
         valueFiles:
-          - $values/envs/internal/values.yaml
+          - $values/envs/values.yaml
     - repoURL: https://github.com/Nvision-x/nx-gitops.git
       targetRevision: development
       ref: values
