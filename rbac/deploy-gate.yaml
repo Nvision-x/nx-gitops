@@ -1,0 +1,29 @@
+# RBAC for the deploy verify gate (GHA runner, mapped to this group via an
+# EKS access entry in nx-mimir-infra-tf). Read app status, patch refresh
+# annotations — nothing else.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: deploy-gate
+  namespace: argocd
+rules:
+  - apiGroups: ["argoproj.io"]
+    resources: ["applications"]
+    verbs: ["get", "list", "watch", "patch"]
+  - apiGroups: ["argoproj.io"]
+    resources: ["applicationsets"]
+    verbs: ["get", "list", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: deploy-gate
+  namespace: argocd
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: deploy-gate
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: Group
+    name: argocd-deploy-gate
