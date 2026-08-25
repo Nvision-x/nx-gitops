@@ -1,7 +1,7 @@
 # Control-plane overlay for our internal envs. Consumed by apps/control-plane.yaml.
 project:
   name: nvisionx-development
-  description: Workloads deployed to eks-development and eks-integration
+  description: Workloads deployed to our internal EKS environments
   sourceRepos:
     - "https://github.com/Nvision-x/*"
     - "https://argoproj.github.io/argo-helm"
@@ -12,6 +12,10 @@ project:
       namespace: "*"
     - name: eks-integration
       namespace: "*"
+    - name: eks-demo
+      namespace: "*"
+    - name: eks-demo2
+      namespace: "*"
 
 environments:
   - name: development
@@ -21,4 +25,12 @@ environments:
   - name: integration
     envRepo:
       url: https://github.com/Nvision-x/nxdeployment-integration-env.git
+      revision: main
+  - name: demo
+    envRepo:
+      url: https://github.com/Nvision-x/nxdeployment-demo-env.git
+      revision: main
+  - name: demo2
+    envRepo:
+      url: https://github.com/Nvision-x/nxdeployment-demo2-env.git
       revision: main
