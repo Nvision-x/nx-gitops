@@ -16,6 +16,8 @@ project:
       namespace: "*"
     - name: eks-demo2
       namespace: "*"
+    - name: eks-uat
+      namespace: "*"
 
 environments:
   - name: development
@@ -33,4 +35,8 @@ environments:
   - name: demo2
     envRepo:
       url: https://github.com/Nvision-x/nxdeployment-demo2-env.git
+      revision: main
+  - name: uat
+    envRepo:
+      url: https://github.com/Nvision-x/nxdeployment-uat-env.git
       revision: main
