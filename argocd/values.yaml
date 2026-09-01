@@ -7,6 +7,37 @@ argo-cd:
   configs:
     params:
       server.insecure: true
+      # kill sync ops stuck longer than 15m instead of hanging forever
+      # (a paused ScaledObject wedged applications-eks-development for 12h on 2026-08-31)
+      controller.sync.timeout.seconds: "900"
+    cm:
+      # upstream health maps a paused ScaledObject to Suspended, which never satisfies
+      # a wave/health gate and wedges the sync op; treat paused as Healthy instead
+      resource.customizations.health.keda.sh_ScaledObject: |
+        local hs = {}
+        hs.status = "Progressing"
+        hs.message = "Waiting for ScaledObject status"
+        if obj.status ~= nil and obj.status.conditions ~= nil then
+          for _, condition in ipairs(obj.status.conditions) do
+            if condition.type == "Paused" and condition.status == "True" then
+              hs.status = "Healthy"
+              hs.message = "ScaledObject is paused (autoscaling.keda.sh/paused-replicas)"
+              return hs
+            end
+          end
+          for _, condition in ipairs(obj.status.conditions) do
+            if condition.type == "Ready" then
+              if condition.status == "True" then
+                hs.status = "Healthy"
+                hs.message = "ScaledObject is ready"
+              elseif condition.status == "False" then
+                hs.status = "Degraded"
+                hs.message = condition.message or "ScaledObject is not ready"
+              end
+            end
+          end
+        end
+        return hs
 
   server:
     replicas: 1
