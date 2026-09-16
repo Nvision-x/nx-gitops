@@ -10,6 +10,9 @@ argo-cd:
       # kill sync ops stuck longer than 15m instead of hanging forever
       # (a paused ScaledObject wedged applications-eks-development for 12h on 2026-08-31)
       controller.sync.timeout.seconds: "900"
+      # diff via SSA dry-run so fields owned by other managers (helm leftovers,
+      # kubectl edits) show as drift instead of hiding behind Synced
+      controller.diff.server.side: "true"
     cm:
       # upstream health maps a paused ScaledObject to Suspended, which never satisfies
       # a wave/health gate and wedges the sync op; treat paused as Healthy instead
