@@ -22,6 +22,8 @@ environments:
     envRepo:
       url: https://github.com/Nvision-x/nxdeployment-development-env.git
       revision: main
+    # dev is a sandbox: kubectl edits stay until the next deploy resets them
+    selfHeal: false
   - name: integration
     envRepo:
       url: https://github.com/Nvision-x/nxdeployment-integration-env.git
