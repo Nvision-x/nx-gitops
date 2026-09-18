@@ -36,3 +36,11 @@ environments:
     envRepo:
       url: https://github.com/Nvision-x/nxdeployment-uat-env.git
       revision: main
+
+# Layers that honour an env's selfHeal: false (dev today). Stateless and
+# rebuildable only; databases, event-systems and infrastructure keep healing.
+layers:
+  processing-systems:
+    allowDrift: true
+  observability:
+    allowDrift: true
