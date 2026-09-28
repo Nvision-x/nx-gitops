@@ -1,0 +1,214 @@
+name: Weekly image scan
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+    inputs:
+      environments:
+        description: 'Space-separated env names (nxdeployment-<env>-env)'
+        type: string
+        default: 'development integration uat demo demo2 ssb pentest'
+      severity:
+        description: 'Trivy severities that count as findings'
+        type: string
+        default: 'CRITICAL,HIGH'
+      ignore-unfixed:
+        description: 'Ignore vulnerabilities with no fixed version'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+env:
+  SEVERITY: ${{ inputs.severity || 'CRITICAL,HIGH' }}
+  # booleans coerce to '' in comparisons, so only an explicit dispatch with the box unchecked turns this off
+  IGNORE_UNFIXED: ${{ (github.event_name == 'workflow_dispatch' && !inputs.ignore-unfixed) && 'false' || 'true' }}
+
+jobs:
+  plan:
+    name: Plan
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - id: plan
+        env:
+          ENVS: ${{ inputs.environments || 'development integration uat demo demo2 ssb pentest' }}
+        run: |
+          # dev/int deploy from the env repo's development branch, every other env from main
+          items=()
+          for e in $ENVS; do
+            branch=main
+            case "$e" in development|integration) branch=development ;; esac
+            items+=("{\"env\":\"$e\",\"branch\":\"$branch\"}")
+          done
+          echo "matrix={\"include\":[$(IFS=,; echo "${items[*]}")]}" >> "$GITHUB_OUTPUT"
+
+  scan:
+    name: ${{ matrix.env }}
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix: ${{ fromJson(needs.plan.outputs.matrix) }}
+    steps:
+      - name: Checkout scripts
+        uses: actions/checkout@v6
+
+      - name: Checkout ${{ matrix.env }} env repo
+        uses: actions/checkout@v6
+        with:
+          repository: Nvision-x/nxdeployment-${{ matrix.env }}-env
+          ref: ${{ matrix.branch }}
+          token: ${{ secrets.GH_REGISTRY_RO_PAT }}
+          path: env
+
+      - name: Render layers and list images
+        id: render
+        run: |
+          scripts/render-env-images.sh env out | tee render.log
+          n=$(wc -l < out/images.txt | tr -d ' ')
+          [ "$n" -gt 0 ] || { echo "::error::no images rendered for ${{ matrix.env }}"; exit 1; }
+          echo "images=$n" >> "$GITHUB_OUTPUT"
+          echo "version=$(yq '.registry.defaultVersion' env/environment.yaml)" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ vars.GHCR_RO_USERNAME || 'ben-nvisionx' }}
+          password: ${{ secrets.GH_REGISTRY_RO_PAT }}
+
+      - name: Install Trivy
+        uses: aquasecurity/setup-trivy@v0.3.1
+        with:
+          cache: true
+
+      - name: Scan images
+        id: scan
+        env:
+          TRIVY_DISABLE_VEX_NOTICE: "true"
+        run: |
+          scripts/scan-images.sh out/images.txt scan "$SEVERITY" "$IGNORE_UNFIXED" > totals.json
+          cat totals.json
+          for k in scanned ok errors critical high total; do
+            echo "$k=$(jq -r ".$k // 0" totals.json)" >> "$GITHUB_OUTPUT"
+          done
+
+      - name: Write report
+        env:
+          ENV_NAME: ${{ matrix.env }}
+          BRANCH: ${{ matrix.branch }}
+          VERSION: ${{ steps.render.outputs.version }}
+        run: |
+          {
+            echo "## 🛡️ $ENV_NAME — chart $VERSION (env repo @ $BRANCH)"
+            echo ""
+            echo "Policy: \`$SEVERITY\`, OS + language deps, ignore-unfixed=$IGNORE_UNFIXED"
+            echo ""
+            echo "| Images | Scanned OK | Errors | CRITICAL | HIGH |"
+            echo "|-------:|-----------:|-------:|---------:|-----:|"
+            jq -r '"| \(.scanned) | \(.ok) | \(.errors) | \(.critical) | \(.high) |"' totals.json
+            echo ""
+            echo "### Layers"
+            echo '```'; cat out/layers.txt; echo '```'
+            echo ""
+            echo "### Images with findings"
+            echo ""
+            echo "| Image | CRITICAL | HIGH |"
+            echo "|-------|---------:|-----:|"
+            jq -r 'select(.status=="ok" and .total > 0) | [.critical, .high, .image] | @tsv' scan/summary.jsonl \
+              | sort -t$'\t' -k1,1nr -k2,2nr \
+              | awk -F'\t' '{printf "| `%s` | %s | %s |\n", $3, $1, $2}'
+            if jq -e 'select(.status=="error")' scan/summary.jsonl >/dev/null 2>&1; then
+              echo ""
+              echo "### Scan errors"
+              echo ""
+              jq -r 'select(.status=="error") | "- `\(.image)`: \(.error)"' scan/summary.jsonl
+            fi
+          } > "report-$ENV_NAME.md"
+          cat "report-$ENV_NAME.md" >> "$GITHUB_STEP_SUMMARY"
+          cp totals.json "totals-$ENV_NAME.json"
+          cp scan/summary.jsonl "summary-$ENV_NAME.jsonl"
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: trivy-weekly-${{ matrix.env }}-${{ github.run_number }}
+          path: |
+            report-${{ matrix.env }}.md
+            totals-${{ matrix.env }}.json
+            summary-${{ matrix.env }}.jsonl
+            out/images.txt
+            out/layers.txt
+            scan/json/*.json
+          retention-days: 30
+
+  report:
+    name: Report
+    needs: scan
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download env results
+        uses: actions/download-artifact@v7
+        with:
+          pattern: trivy-weekly-*-${{ github.run_number }}
+          merge-multiple: true
+
+      - name: Overall summary
+        id: overall
+        run: |
+          {
+            echo "# 🛡️ Weekly image scan — $(date -u +%Y-%m-%d)"
+            echo ""
+            echo "Policy: \`$SEVERITY\`, OS + language deps, ignore-unfixed=$IGNORE_UNFIXED. Per-env details are in each env job summary and the \`trivy-weekly-*\` artifacts."
+            echo ""
+            echo "| Env | Images | Errors | CRITICAL | HIGH |"
+            echo "|-----|-------:|-------:|---------:|-----:|"
+            for f in totals-*.json; do
+              [ -f "$f" ] || continue
+              e=${f#totals-}; e=${e%.json}
+              jq -r --arg e "$e" '"| \($e) | \(.scanned) | \(.errors) | \(.critical) | \(.high) |"' "$f"
+            done
+            echo ""
+            echo "### Top images across all envs"
+            echo ""
+            echo "| Image | CRITICAL | HIGH | Envs |"
+            echo "|-------|---------:|-----:|------|"
+            for f in summary-*.jsonl; do
+              [ -f "$f" ] || continue
+              e=${f#summary-}; e=${e%.jsonl}
+              jq -c --arg e "$e" 'select(.status=="ok" and .total > 0) | {image, critical, high, env: $e}' "$f"
+            done | jq -s -r 'group_by(.image)
+              | map({image: .[0].image, critical: .[0].critical, high: .[0].high, envs: (map(.env) | unique | join(", "))})
+              | sort_by(-.critical, -.high) | .[:20][]
+              | "| `\(.image)` | \(.critical) | \(.high) | \(.envs) |"'
+          } > overall.md
+          cat overall.md >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "text<<EOF"
+            echo "Weekly image scan ($SEVERITY): $(for f in totals-*.json; do [ -f "$f" ] || continue; e=${f#totals-}; e=${e%.json}; jq -r --arg e "$e" '"\($e): \(.critical)C/\(.high)H (\(.errors) err)"' "$f"; done | paste -sd';' - | sed 's/;/; /g')"
+            echo "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Upload overall report
+        uses: actions/upload-artifact@v7
+        with:
+          name: trivy-weekly-overall-${{ github.run_number }}
+          path: overall.md
+          retention-days: 90
+
+      - name: Slack
+        if: env.SLACK_WEBHOOK_URL != ''
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          TEXT: ${{ steps.overall.outputs.text }}
+        run: |
+          jq -n --arg t "$TEXT" '{text: $t}' | curl -sS -X POST -H 'Content-type: application/json' --data @- "$SLACK_WEBHOOK_URL"
