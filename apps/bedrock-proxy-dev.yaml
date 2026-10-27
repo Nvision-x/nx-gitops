@@ -1,0 +1,73 @@
+# LiteLLM Bedrock proxy for Claude Code nightly runs (Philippe), eks-development only.
+# AWS creds come from Pod Identity on SA default:bedrock-proxy (nx-development-tf #68);
+# exposed on the tailnet only as http://bedrock-proxy-dev.tailef5880.ts.net.
+# Master key Secret bedrock-proxy-masterkey is created by hand (chart's generated key
+# uses helm lookup, which ArgoCD can't do, so it would rotate every sync).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: bedrock-proxy-eks-development
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: nvisionx-development
+  destination:
+    name: eks-development
+    namespace: default
+  source:
+    repoURL: ghcr.io/berriai
+    chart: litellm-helm
+    targetRevision: 1.106.4
+    helm:
+      releaseName: bedrock-proxy
+      valuesObject:
+        fullnameOverride: bedrock-proxy
+        image:
+          tag: "1.106.4"
+        serviceAccount:
+          create: false
+          name: bedrock-proxy
+        masterkeySecretName: bedrock-proxy-masterkey
+        masterkeySecretKey: masterkey
+        db:
+          useExisting: false
+          deployStandalone: false
+        migrationJob:
+          enabled: false
+        service:
+          type: LoadBalancer
+          loadBalancerClass: tailscale
+          port: 80
+          annotations:
+            tailscale.com/hostname: bedrock-proxy-dev
+            tailscale.com/proxy-class: tailscale-proxy
+        resources:
+          requests:
+            cpu: 100m
+            memory: 512Mi
+          limits:
+            memory: 1Gi
+        proxy_config:
+          model_list:
+            - model_name: claude-opus-5-5
+              litellm_params:
+                model: bedrock/us.anthropic.claude-opus-5-5
+                aws_region_name: us-east-1
+            - model_name: gpt-5.4
+              litellm_params:
+                model: bedrock/converse/us.openai.gpt-5.4
+                aws_region_name: us-east-1
+            # any other Bedrock model by id, e.g. bedrock/us.anthropic.claude-opus-5
+            - model_name: bedrock/*
+              litellm_params:
+                model: bedrock/*
+                aws_region_name: us-east-1
+          litellm_settings:
+            drop_params: true
+          general_settings:
+            master_key: os.environ/PROXY_MASTER_KEY
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
