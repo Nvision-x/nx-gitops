@@ -23,22 +23,25 @@ environments:
     envRepo:
       url: https://github.com/Nvision-x/nxdeployment-development-env.git
       revision: main
-    # dev is a sandbox: kubectl edits stay until the next deploy resets them
+    # kubectl edits stay until the next deploy resets them (all internal envs)
     selfHeal: false
   - name: integration
     envRepo:
       url: https://github.com/Nvision-x/nxdeployment-integration-env.git
       revision: main
+    selfHeal: false
   - name: demo
     envRepo:
       url: https://github.com/Nvision-x/nxdeployment-demo-env.git
       revision: main
+    selfHeal: false
   - name: uat
     envRepo:
       url: https://github.com/Nvision-x/nxdeployment-uat-env.git
       revision: main
+    selfHeal: false
 
-# Layers that honour an env's selfHeal: false (dev today). Stateless and
+# Layers that honour an env's selfHeal: false. Stateless and
 # rebuildable only; databases, event-systems and infrastructure keep healing.
 layers:
   processing-systems:
